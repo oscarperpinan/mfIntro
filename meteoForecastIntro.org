@@ -1,0 +1,356 @@
+#+TITLE:     =meteoForecast=: predicciones meteorológicas de modelos NWP en =R=
+#+AUTHOR:    Oscar Perpiñán Lamigueiro y Marcelo Pinho Almeida
+#+DATE: 24 de Octubre de 2014
+
+#+OPTIONS: H:2
+#+PROPERTY: eval no
+#+PROPERTY: exports both 
+#+PROPERTY: results output graphics
+
+* Introducción
+
+** =meteoForecast=
+
+#+begin_src R :exports none
+setwd('/home/oscar/Dropbox/meteoDemo')
+#+end_src
+
+*** ¿Qué es?
+=meteoForecast= es un paquete que permite obtener predicciones de
+modelos numéricos meteorológicos producidos por diferentes servicios
+en formato raster o como series temporales.
+
+*** Marco de trabajo
+El desarrollo de este paquete se enmarca dentro del proyecto europeo
+[[http://www.pvcrops.eu/project-deliverables][PVCROPS]].
+
+** Servicios disponibles
+
+*** 							      :BMCOL:
+    :PROPERTIES:
+    :BEAMER_col: 0.3
+    :END:
+
+  - [[http://www.emc.ncep.noaa.gov/index.php?branch=GFS][GFS]]
+  - [[http://www.meteogalicia.es/web/modelos/threddsIndex.action][MeteoGalicia]]
+  - [[https://openmeteoforecast.org/][OpenMeteo]]
+  - [[http://www.ncdc.noaa.gov/data-access/model-data/model-datasets/north-american-mesoscale-forecast-system-nam][NAM]]
+  - [[http://www.ncdc.noaa.gov/data-access/model-data/model-datasets/rapid-refresh-rap][RAP]]
+*** 								      :BMCOL:
+    :PROPERTIES:
+    :BEAMER_col: 0.7
+    :END:
+[[file:figs/mapaServices.png]]
+
+** Instalación
+- La versión de desarrollo está en GitHub:
+#+begin_src R :eval no
+    install.packages("devtools")
+    devtools::install_github("oscarperpinan/meteoForecast")
+#+end_src
+
+- La versión estable está publicada en [[http://cran.r-project.org/web/packages/meteoForecast/][CRAN]]:
+
+ #+begin_src R :eval no
+    install.packages('meteoForecast')
+ #+end_src
+
+- Empezamos
+#+begin_src R :exports code
+  library(meteoForecast)
+#+end_src
+
+
+* Primeros pasos
+
+** Variables
+
+- Cada servicio proporciona un conjunto diferente de variables con sus
+  propios nombres.
+- Su nombre y descripción están disponibles en =varsMG=, =varsGFS=,
+  etc.
+#+begin_src R :exports code
+data(varsMG)
+#+end_src
+- =grepVar= facilita la tarea de buscar la variable que interesa:
+
+#+begin_src R
+grepVar('cloud', service = 'gfs')
+#+end_src
+
+#+RESULTS:
+#+begin_example
+ [1] "Temperature_low_cloud_top"           "Pressure_middle_cloud_top"          
+ [3] "Temperature_middle_cloud_top"        "Total_cloud_cover_middle_cloud"     
+ [5] "Cloud_Work_Function"                 "Pressure_low_cloud_bottom"          
+ [7] "Pressure_convective_cloud_top"       "Pressure_convective_cloud_bottom"   
+ [9] "Total_cloud_cover_high_cloud"        "Total_cloud_cover"                  
+[11] "Pressure_low_cloud_top"              "Pressure_high_cloud_top"            
+[13] "Pressure_middle_cloud_bottom"        "Cloud_mixing_ratio"                 
+[15] "Pressure_high_cloud_bottom"          "Total_cloud_cover_convective_cloud" 
+[17] "Cloud_water"                         "Total_cloud_cover_entire_atmosphere"
+[19] "Total_cloud_cover_low_cloud"         "Temperature_high_cloud_top"
+#+end_example
+
+  
+** Servicios
+
+- Cada función admite un argumento =service= para elegir el servicio.
+- Al cargar el paquete el servicio por defecto es MeteoGalicia.
+#+begin_src R
+mfService()
+#+end_src
+
+#+RESULTS:
+: [1] "meteogalicia"
+
+- Se puede cambiar (para una sesión) usando =mfService= con el nombre
+  del servicio.
+#+begin_src R
+mfService('gfs')
+#+end_src
+
+#+RESULTS:
+: Option service changed to gfs
+
+#+begin_src R
+mfService('meteogalicia')
+#+end_src
+
+#+RESULTS:
+: Option service changed to meteogalicia
+
+** Información sobre cada servicio
+
+- =mfProj4= devuelve la proyección (Proj4) de un servicio:
+#+begin_src R
+mfProj4('nam')
+#+end_src
+
+#+RESULTS:
+: [1] "+proj=lcc +lat_1=25 +lat_0=25 +lon_0=-95 +k_0=1 +x_0=0 +y_0=0 +a=6367470.21484375 +b=6367470.21484375 +units=km +no_defs "
+
+- =mfExtent= devuelve la extensión de un servicio (usando la clase =Extent= del paquete =raster=):
+#+begin_src R
+mfExtent('meteogalicia', resolution = 36)
+#+end_src
+
+#+RESULTS:
+: class       : Extent 
+: xmin        : -49.18259 
+: xmax        : 18.789 
+: ymin        : 24.03791 
+: ymax        : 56.06608
+
+* NWP para una región: =getRaster*=
+
+** =getRaster=
+
+- =getRaster= descarga ficheros NetCDF con resultados del modelo NWP
+  para un región emitidos un día determinado y los acondiciona en un
+  objeto =RasterBrick=.
+- La extensión, la resolución temporal, y el horizonte de predicción
+  dependen de cada servicio.
+
+#+begin_src R :exports code
+  ## temperature at 2m
+  wrf <- getRaster(var = 'temp',
+                   day = '2014-01-25',
+                   run = '00')
+#+end_src
+
+** 
+#+ATTR_LATEX: :height 0.6\textheight
+#+begin_src R  :exports results :width 2000 :height 2000 :res 300 :file figs/wrf.png
+library(rasterVis)
+levelplot(wrf, layers = 10:18, par.settings = BTCTheme())
+#+end_src
+
+#+RESULTS:
+[[file:figs/wrf.png]]
+
+** Limitando la región y el periodo temporal
+
+#+begin_src R :exports code
+cloudNAM <- getRaster('Total_cloud_cover',
+                      day = '2014-10-01',
+                      box = c(-100, -80, 30, 50),
+                      frames = 10,
+                      service = 'nam')
+#+end_src
+
+#+begin_src R :exports results
+projectExtent(cloudNAM, "+proj=longlat +datum=WGS84")
+#+end_src
+
+#+RESULTS:
+: class       : RasterLayer 
+: dimensions  : 196, 159, 31164  (nrow, ncol, ncell)
+: resolution  : 0.1537046, 0.1084714  (x, y)
+: extent      : -101.1972, -76.75821, 29.35018, 50.61057  (xmin, xmax, ymin, ymax)
+: coord. ref. : +proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0
+
+#+begin_src R 
+getZ(cloudNAM)
+#+end_src
+
+#+RESULTS:
+:  [1] "2014-10-01 01:00:00 UTC" "2014-10-01 02:00:00 UTC"
+:  [3] "2014-10-01 03:00:00 UTC" "2014-10-01 04:00:00 UTC"
+:  [5] "2014-10-01 05:00:00 UTC" "2014-10-01 06:00:00 UTC"
+:  [7] "2014-10-01 07:00:00 UTC" "2014-10-01 08:00:00 UTC"
+:  [9] "2014-10-01 09:00:00 UTC" "2014-10-01 10:00:00 UTC"
+
+** =getRasterDay= y =getRasterDays=
+
+- =getRasterDay= y =getRasterDays= se basan en =getRaster= para
+  obtener resultados exclusivamente para un día determinado y una
+  secuencia de días, respectivamente.
+
+#+begin_src R :exports code
+  ## cloud cover at low and mid levels
+  wrfDays <- getRasterDays(var = 'cft',
+                           start = '2014-01-01',
+                           end = '2014-01-05',
+                           box = c(-2, 35, 2, 40))
+#+end_src
+
+#+begin_src R :exports results
+  wrfDays
+#+end_src
+
+#+RESULTS:
+: class       : RasterStack 
+: dimensions  : 65, 41, 2665, 120  (nrow, ncol, ncell, nlayers)
+: resolution  : 12, 12  (x, y)
+: extent      : 1554, 2046, -6, 774  (xmin, xmax, ymin, ymax)
+: coord. ref. : +proj=lcc +lat_1=43 +lat_2=43 +lat_0=34.82300186157227 +lon_0=-14.10000038146973 +x_0=536402.34 +y_0=-18558.61 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs 
+: names       : d2014.01.01.h01, d2014.01.01.h02, d2014.01.01.h03, d2014.01.01.h04, d2014.01.01.h05, d2014.01.01.h06, d2014.01.01.h07, d2014.01.01.h08, d2014.01.01.h09, d2014.01.01.h10, d2014.01.01.h11, d2014.01.01.h12, d2014.01.01.h13, d2014.01.01.h14, d2014.01.01.h15, ... 
+: min values  :      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000,      0.00000000, ... 
+: max values  :       0.6915230,       0.9363602,       1.0209019,       1.0181180,       0.9741192,       1.0097407,       1.0229231,       1.0159433,       1.0287733,       1.0006489,       0.9815325,       0.9944173,       1.0124562,       1.3608389,       2.4704671, ... 
+: time        : 2014-01-01 01:00:00 - 2014-01-06 00:00:00 (range)
+
+** 
+#+ATTR_LATEX: :height 0.6\textheight
+#+begin_src R  :exports none :file figs/wrfDays%03d.png
+levelplot(wrfDays, layout = c(1, 1), par.settings = BTCTheme())
+#+end_src
+
+#+RESULTS:
+[[file:figs/wrfDays%03d.png]]
+
+#+BEGIN_LaTeX
+\animategraphics[width=\textwidth, autoplay,loop]{5}{figs/wrfDays}{001}{120}
+#+END_LaTeX
+
+
+* NWP para un punto: =getPoint*=
+
+** =getPoint=
+
+- =getPoint= descarga resultados emitidos un día determinado por un
+  modelo NWP para un *punto* y los acondiciona como serie temporal
+  usando la clase =zoo=.
+
+#+begin_src R :exports code
+  ## Radiación solar y temperatura
+  vars <- getPoint(point = c(0, 40),
+                   day = Sys.Date() - 1, 
+                   vars = c('swflx', 'temp'))
+  attr(vars, 'lat')
+  attr(vars, 'lon')
+#+end_src
+** 
+#+ATTR_LATEX: :height 0.6\textheight
+#+begin_src R  :exports results :file figs/point.pdf
+  library(lattice)
+  Sys.setenv(TZ = 'UTC') 
+
+  xyplot(vars)
+#+end_src
+
+#+RESULTS:
+[[file:figs/point.pdf]]
+
+** =getPointDays=
+- =getPointDays= usa =getPoint= para construir una secuencia de días.
+#+begin_src R :exports code
+  radDays <- getPointDays(point = c(0, 40),
+                          var = 'swflx',
+                          start = '2013-01-01',
+                          end = '2013-01-15')
+#+end_src
+
+** 
+#+ATTR_LATEX: :height 0.6\textheight
+#+begin_src R  :exports results :file figs/radDays.pdf
+  xyplot(radDays)
+#+end_src
+
+#+RESULTS:
+[[file:figs/radDays.pdf]]
+
+** =getPointRuns=
+- =getPointRuns= usa =getPoint= para producir una serie temporal de
+  predicciones, donde cada columna indica cuando fue emitida esa
+  predicción.
+#+begin_src R :exports code
+  ## Variability between runs
+  radRuns <- getPointRuns(c(0, 40),
+                          var = 'swflx',
+                          start = '2013-01-01',
+                          end = '2013-01-15')
+#+end_src
+
+** 
+#+ATTR_LATEX: :height 0.6\textheight
+#+begin_src R  :exports results :file figs/radRuns.pdf
+xyplot(radRuns, superpose = TRUE)
+#+end_src
+
+#+RESULTS:
+[[file:figs/radRuns.pdf]]
+
+** 
+#+begin_src R
+## variability around the average
+radAv <- rowMeans(radRuns)
+radVar <- sweep(radRuns, 1, radAv)
+#+end_src
+
+** 
+#+ATTR_LATEX: :height 0.6\textheight
+#+begin_src R  :exports results :file figs/radVar.pdf
+xyplot(radVar, superpose = TRUE)
+#+end_src
+
+#+RESULTS:
+[[file:figs/radVar.pdf]]
+
+#+LANGUAGE:  es
+#+OPTIONS:   num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+OPTIONS:   TeX:t LaTeX:t skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+LINK_UP:   
+#+LINK_HOME: 
+#+XSLT:
+#+startup: beamer
+#+LaTeX_CLASS: beamer
+#+LATEX_CLASS_OPTIONS: [xcolor={usenames,svgnames,dvipsnames}]
+#+BEAMER_THEME: Goettingen
+#+BEAMER_COLOR_THEME: rose
+#+BEAMER_FONT_THEME: serif
+#+LATEX_HEADER: \AtBeginSection[]{\begin{frame}[plain]\tableofcontents[currentsection,hideallsubsections]\end{frame}}
+#+LATEX_HEADER: \lstset{keywordstyle=\color{blue}, commentstyle=\color{gray!90}, basicstyle=\ttfamily\small, columns=fullflexible, breaklines=true,linewidth=\textwidth, backgroundcolor=\color{gray!23}, basewidth={0.5em,0.4em}, literate={á}{{\'a}}1 {ñ}{{\~n}}1 {é}{{\'e}}1 {ó}{{\'o}}1 {º}{{\textordmasculine}}1}
+#+LATEX_HEADER: \usepackage{mathpazo}
+#+LATEX_HEADER: \hypersetup{colorlinks=true, linkcolor=Blue, urlcolor=Blue}
+#+LATEX_HEADER: \usepackage{fancyvrb}
+#+LATEX_HEADER: \DefineVerbatimEnvironment{verbatim}{Verbatim}{boxwidth=\textwidth, fontsize=\tiny, formatcom = {\color{black!70}}}
+#+LATEX_HEADER: \usepackage{animate}
+#+PROPERTY:  tangle yes
+#+PROPERTY:  comments org
+#+PROPERTY: session *R*
+
+
