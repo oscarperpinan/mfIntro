@@ -28,7 +28,7 @@ El desarrollo de este paquete se enmarca dentro del proyecto europeo
 
 *** 							      :BMCOL:
     :PROPERTIES:
-    :BEAMER_col: 0.3
+    :BEAMER_col: 0.32
     :END:
 
   - [[http://www.emc.ncep.noaa.gov/index.php?branch=GFS][GFS]]
